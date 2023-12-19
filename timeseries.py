@@ -9,6 +9,7 @@ import scipy.interpolate
 from ipywidgets import interact, interactive, fixed, interact_manual
 import matplotlib.pyplot as plt
 from PyEMD import EMD
+from scipy.interpolate import interp1d
 
 def find_period_amp(k_t):
     # find the period and amplitude of undulatory signal k_t
@@ -282,7 +283,7 @@ def centerline2curvature(centerline,smooth=0.99999):
         # curv_orig[:,t] = np.interp(x_curv_orig,x_curv_interp,curv_interp)
     return curv_orig
     
-
+# def boundary2centerline(boundary):
 
 ############################################################################################################
 # Functions for eigenworms and Takens embedding
@@ -622,6 +623,74 @@ def align_trajectory(source,target):
     corr = scipy.signal.correlate(source,target,mode='valid')
     start_ind = np.argmax(abs(corr))
     return start_ind
+
+def local_delay_period(k1,k2,t=None,dt=0.02):
+    assert len(k1)==len(k2)
+    if t is None:
+        t = np.arange(len(k1))*dt
+    else:
+        assert len(t)==len(k1)
+    try:
+        phase = np.angle(scipy.signal.hilbert(k2))
+        phase_unwrap = np.unwrap(phase)
+        f_time = interp1d(phase_unwrap,t)
+    except:
+        print('smoothing k2')
+        k2_smooth = np.convolve(k2,np.ones(10)/10,mode='same')
+        phase = np.angle(scipy.signal.hilbert(k2_smooth))
+        phase_unwrap = np.unwrap(phase)
+        f_time = interp1d(phase_unwrap,t)
+    window = np.pi*3
+    # delay_t = np.zeros(len(k1))
+    # period_t = np.zeros(len(k1))
+    n_period = int(phase_unwrap.max()/(2*np.pi))+1
+    delays = np.zeros(n_period)
+    periods = np.zeros(n_period)
+    sample_ind = np.zeros((n_period,2),dtype=int)
+
+    for i in range(n_period):
+        # determine the start phase and the end phase of the window
+        if i*2*np.pi - window/2 < phase_unwrap.min():
+            start = phase_unwrap.min()
+            end = start + window
+        elif i*2*np.pi + window/2 > phase_unwrap.max():
+            end = phase_unwrap.max()
+            start = end - window
+        else:
+            start = i*2*np.pi - window/2
+            end = i*2*np.pi + window/2
+        start_t = f_time(start)
+        start_ind = np.argmin(abs(t-start_t))
+        end_t = f_time(end)
+        end_ind = np.argmin(abs(t-end_t))
+        periods[i] = (end_t - start_t)*2*np.pi/window
+        autocorr = scipy.signal.correlate(k2[start_ind:end_ind],k1[start_ind:end_ind],mode='full')
+        autocorr = autocorr[len(autocorr)//2:]
+        peak = np.argmax(autocorr)
+        delays[i] = t[start_ind+peak] - t[start_ind]
+        sample_ind[i,0] = start_ind
+        sample_ind[i,1] = end_ind
+    return sample_ind,delays,periods
+
+def sliding_window_delay(k1,k2,t=None,dt=0.02,step=20,windos_len=200):
+    assert len(k1)==len(k2)
+    if t is None:
+        t = np.arange(len(k1))*dt
+    else:
+        assert len(t)==len(k1)
+    sample_center = np.arange(0,len(k1),step)
+    start_ind = np.maximum(sample_center-windos_len//2,0)
+    end_ind = np.minimum(sample_center+windos_len//2,len(k1))
+    delays = np.zeros(len(sample_center))
+    for i in range(len(sample_center)):
+        autocorr = scipy.signal.correlate(k2[start_ind[i]:end_ind[i]],k1[start_ind[i]:end_ind[i]],mode='full')
+        autocorr = autocorr[len(autocorr)//2:]
+        peak = np.argmax(autocorr)
+        delays[i] = t[start_ind[i]+peak] - t[start_ind[i]]
+    return t[sample_center],delays
+
+    
+
 
 ##### Hilbert-Huang transform to extract phase#####
 def HH_phase(s,p=50,shift=1):
