@@ -1,3 +1,4 @@
+#%%
 import os
 import signal
 import numpy as np
@@ -6,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import serial
 import warnings
+import psutil
 
 class Worm:
     '''Worm locomotion simulator based on the neuro-mechanical model and code by Cohen 2012
@@ -291,3 +293,124 @@ class WormPuppet:
     def close(self):
         os.killpg(os.getpgid(self.mech_model.pid), signal.SIGTERM)
         self.controller.close()
+
+class Connect:
+    def __init__(self,neurons,body,**kwargs):
+        self.neurons = neurons
+        self.body = body
+        self.N_Input = body.N_Input
+        self.N_Curv = body.N_Curv
+        self.N_Segment = body.N_Segment
+        self.Ma = np.zeros((self.N_Input,))
+        # self.tau_m = kwargs.get('tau_m',0.1)
+        # self.neuron2muscle = kwargs.get('neuron2muscle',self.get_neuron2muscle())
+        self.curvature = np.zeros((self.N_Curv,))
+        self.centerline = np.zeros((self.N_Segment+1,2))
+        self.neuron_output = np.zeros((self.N_Input,))
+        self.neurons.get_mat(self.N_Curv,self.N_Input//2)
+  
+
+    def update_worm(self,control):
+        neuron_output = self.neurons.update_neuron(self.curvature,control) # neuron output number must match the number of muscles
+        assert len(neuron_output) == self.N_Input # the first half of Input to the dorsal muscle of the body and the second half to the ventral muscle
+        centerline,curvature = self.body.update_body(neuron_output) # centerline is of shape (N_Segment+1,2)
+        self.curvature = curvature
+        self.centerline = centerline
+        self.neuron_output = neuron_output
+    
+    def run(self,time,control=None):
+        T = len(time)
+        centerline_t = np.zeros((self.N_Segment+1,2,T))
+        curvature_t = np.zeros((self.N_Curv,T))
+        neuron_output_t = np.zeros((self.N_Input,T))
+        if control is not None:
+            assert control.shape[0] == T
+        for t in range(T):
+            self.update_worm(control[t])
+            centerline_t[:,:,t] = self.centerline
+            curvature_t[:,t] = self.curvature
+            neuron_output_t[:,t] = self.neuron_output
+
+        return centerline_t,curvature_t,neuron_output_t
+    
+class CohenWorm:
+    def __init__(self,model_path,**kwargs) -> None:
+        self.N_Input = 12*2
+        self.N_Segment = 48
+        self.NBAR = self.N_Segment + 1  
+        self.N_Curv = self.N_Segment 
+        self.model_path = model_path
+        self.dt = 0.01
+        # Load the mechanical model
+        self.mech_model = subprocess.Popen([self.model_path],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    text=True)
+        
+        self.V = np.zeros(12) # Voltage of muscle
+        self.yval = np.zeros((self.NBAR,3))
+        self.D = 80e-6
+        self.R = self.D/2.0*abs(np.sin(np.arccos((np.arange(self.NBAR)-self.N_Segment/2.0)/(self.N_Segment/2.0 + 0.2))))
+    
+    def update_body(self,V_muscle):
+        # Update the voltage and the position of the worm
+        try:
+            from_model = self.mech_model.stdout.readline().strip()
+            if from_model == "-1":
+                pass
+            yval_str, sr_str, neuron_str = from_model.split('\t')
+            yval_str = yval_str.strip(' ,').split(',')
+            yval = self.yval
+            for i in range(self.NBAR):
+                yval[i][0] = float(yval_str[i*3]) # x position
+                yval[i][1] = float(yval_str[i*3+1]) # y position
+                yval[i][2] = float(yval_str[i*3+2]) # angle
+        except:
+            warnings.warn('Mechanical model not responding, use the previous yval')
+            yval = self.yval
+        
+        angle_unwrap = np.unwrap(yval[:,2])
+        curvature = angle_unwrap[1:] - angle_unwrap[:-1]
+        centerline = yval[:,:2]
+        
+        ################# Write to the mechanical model #################
+        assert len(V_muscle) == self.N_Input
+        # V_all = np.concatenate((V_muscle,-V_muscle))
+        # print(frame,V_all)
+        try:
+            for i in range(self.N_Segment*2):
+                self.mech_model.stdin.write(str(V_muscle[i//4])) # 4 means the 4 segments per unit
+                self.mech_model.stdin.write(' ')
+            self.mech_model.stdin.write('\n')
+            self.mech_model.stdin.flush()
+        except:
+            raise Exception('Mechanical model not responding')
+        return centerline,curvature
+    
+    def close(self):
+        psutil.Process(self.mech_model.pid).kill()
+        
+#%%
+if __name__ == '__main__':
+    worm = CohenWorm('../WormSim/WormSim_RL_demo_3/Model/program_dur100s_dt10ms')
+    T = 1000
+    centerline_t = np.zeros((worm.N_Segment+1,2,T))
+    curvature_t = np.zeros((worm.N_Segment,T))
+    for t in range(T):
+        x = np.linspace(0,1,12)
+        input = np.concatenate((np.sin(x*2*np.pi-t*0.01*2*np.pi/3),-np.sin(x*2*np.pi-t*0.01*2*np.pi/3)))
+        centerline,curvature = worm.update_body(input)
+        centerline_t[:,:,t] = centerline
+        curvature_t[:,t] = curvature
+        
+
+
+
+        
+    
+
+
+        
+
+        
+# %%
