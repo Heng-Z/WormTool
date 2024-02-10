@@ -283,7 +283,53 @@ def centerline2curvature(centerline,smooth=0.99999):
         # curv_orig[:,t] = np.interp(x_curv_orig,x_curv_interp,curv_interp)
     return curv_orig
     
-# def boundary2centerline(boundary):
+def boundary2centerline(boundary_A,boundary_B,direct_mean=False):
+    '''
+    Take the two boundaries of the worm to estimate the centerline.
+
+    Parameters
+    ----------
+    boundary_A : array of shape (N,2,T)
+        Boundary A of the worm.
+    boundary_B : array of shape (N,2,T)
+        Boundary B of the worm.
+    
+    Returns
+    -------
+    centerline : array of shape (N,2,T)
+        Centerline of the worm.
+    '''
+    # csaps spine fit to boundary A and B
+    N = boundary_A.shape[0]
+    T = boundary_A.shape[2]
+    # Transform to float64 if not
+    if boundary_A.dtype != np.float64:
+        boundary_A = boundary_A.astype(np.float64)
+    if boundary_B.dtype != np.float64:
+        boundary_B = boundary_B.astype(np.float64)
+    
+    if not direct_mean:
+        centerline = np.zeros((N,2,T))
+        for t in range(T):
+            try:
+                boundary_A_spine = csaps(np.linspace(0,1,N),boundary_A[:,:,t].T,np.linspace(0,1,N),smooth=0.99999).T
+                boundary_B_spine = csaps(np.linspace(0,1,N),boundary_B[:,:,t].T,np.linspace(0,1,N),smooth=0.99999).T
+                centerline_i = (boundary_A_spine + boundary_B_spine)/2
+                # centerline_i = (boundary_A[:,:,t] + boundary_B[:,:,t])/2
+                # centerline[:,:,t] = centerline_i
+                # make centerline evenly spaced
+                ds = np.sqrt(np.sum((centerline_i[1:,:]-centerline_i[:-1,:])**2,axis=1))
+                s = np.cumsum(np.hstack((0,ds))) # s is the arclength
+                centerline[:,:,t] = csaps(s/s[-1],centerline_i.T,np.linspace(0,1,N),smooth=0.99999).T
+            except:
+                centerline_i = (boundary_A[:,:,t] + boundary_B[:,:,t])/2
+                ds = np.sqrt(np.sum((centerline_i[1:,:]-centerline_i[:-1,:])**2,axis=1))
+                s = np.cumsum(np.hstack((0,ds))) # s is the arclength
+                centerline[:,:,t] = csaps(s/s[-1],centerline_i.T,np.linspace(0,1,N),smooth=0.99999).T
+        return centerline
+    else:
+        centerline = (boundary_A + boundary_B)/2
+        return centerline
 
 ############################################################################################################
 # Functions for eigenworms and Takens embedding
