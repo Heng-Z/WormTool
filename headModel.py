@@ -201,7 +201,31 @@ class FHNneuron:
         plt.close(fig)
         print('Gif saved to %s'%name)
 
+class BistableNeuron:
+    def __init__(self,**kwargs) -> None:
+        self.th1 = kwargs.get('th1',0.9)
+        self.th2 = kwargs.get('th2',0.2)
+        self.x = 0
+    def update(self,I):
+        if self.x == 0 and I > self.th1:
+            self.x = 1
+        elif self.x == 1 and I < self.th2:
+            self.x = 0
 
+
+class Head:
+    def __init__(self,**kwargs) -> None:
+        self.tau_m = kwargs.get('tau_m',0.1)
+        self.tau_k = kwargs.get('tau_k',0.4)
+        self.M = kwargs.get('M',1)
+        self.K = kwargs.get('K',0)
+        self.dt = kwargs.get('dt',0.01)
+        
+    def update(self,X):
+        dMdt = (X-self.M)/self.tau_m
+        dKdt = (self.M-self.K)/self.tau_k
+        self.M += dMdt*self.dt
+        self.K += dKdt*self.dt
 
 if __name__ == '__main__':
     model = Bistable()
