@@ -335,32 +335,41 @@ class Connect:
     
 class CohenWorm:
     def __init__(self,model_path,**kwargs) -> None:
-        self.N_Input = 12*2
+        self.N_Input = 12
         self.N_Segment = 48
         self.NBAR = self.N_Segment + 1  
         self.N_Curv = self.N_Segment 
         self.model_path = model_path
         self.dt = 0.01
         # Load the mechanical model
-        self.mech_model = subprocess.Popen([self.model_path],
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    text=True)
+        self.mech_model = None
         
         self.V = np.zeros(12) # Voltage of muscle
         self.yval = np.zeros((self.NBAR,3))
+        self.curvature = np.zeros((self.N_Curv,))
         self.D = 80e-6
         self.R = self.D/2.0*abs(np.sin(np.arccos((np.arange(self.NBAR)-self.N_Segment/2.0)/(self.N_Segment/2.0 + 0.2))))
     
-    def update_body(self,V_muscle):
-        # Update the voltage and the position of the worm
+    def reset(self):
+        if self.mech_model is not None:
+            self.close()
+        self.mech_model = subprocess.Popen([self.model_path],
+                            stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE,
+                            text=True)
+        yval,curvature = self.get_model_posture()
+        self.yval = yval
+        self.curvature = curvature
+        return yval,curvature
+
+    def get_model_posture(self):
         try:
             from_model = self.mech_model.stdout.readline().strip()
             if from_model == "-1":
                 pass
             yval_str, sr_str, neuron_str = from_model.split('\t')
             yval_str = yval_str.strip(' ,').split(',')
-            yval = self.yval
+            yval = self.yval.copy()
             for i in range(self.NBAR):
                 yval[i][0] = float(yval_str[i*3]) # x position
                 yval[i][1] = float(yval_str[i*3+1]) # y position
@@ -371,12 +380,17 @@ class CohenWorm:
         
         angle_unwrap = np.unwrap(yval[:,2])
         curvature = angle_unwrap[1:] - angle_unwrap[:-1]
-        centerline = yval[:,:2]
+        return yval,curvature
+
+    def update_body(self,V_muscle):
+        # Update the voltage and the position of the worm
+    
         
         ################# Write to the mechanical model #################
         assert len(V_muscle) == self.N_Input
         # V_all = np.concatenate((V_muscle,-V_muscle))
         # print(frame,V_all)
+        V_muscle = np.concatenate((V_muscle,-V_muscle))
         try:
             for i in range(self.N_Segment*2):
                 self.mech_model.stdin.write(str(V_muscle[i//4])) # 4 means the 4 segments per unit
@@ -385,7 +399,10 @@ class CohenWorm:
             self.mech_model.stdin.flush()
         except:
             raise Exception('Mechanical model not responding')
-        return centerline,curvature
+        
+        yval,curvature = self.get_model_posture()
+
+        return yval,curvature
     
     def close(self):
         psutil.Process(self.mech_model.pid).kill()
