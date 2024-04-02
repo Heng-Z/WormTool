@@ -576,6 +576,9 @@ def find_lf_denoised(head_curv):
     # else:
     #     lf = imfs[0:2,:].sum(axis=0)
     denoised = imfs[0:6,:].sum(axis=0)
+    if len(denoised)<len(head_curv):
+        denoised = np.pad(denoised,(0,len(head_curv)-len(denoised)),'edge')
+        lf = np.pad(lf,(0,len(head_curv)-len(lf)),'edge')
     lf_phase = np.angle(scipy.signal.hilbert(lf))
     return lf,denoised,lf_phase
 
@@ -961,6 +964,12 @@ def plot_prob_x_cond_y(sig_x,sig_y,xbins,ybins,xclip=None,yclip=None):
     plt.colorbar()
     plt.show()
 
+def smooth_data(s,window):
+    '''
+    Smooth the data with a window.
+    '''
+    return np.convolve(np.pad(s,(window,window),'edge'),np.ones(window*2+1)/(window*2+1),mode='same')[window:-window]   
+
 
 #%%    
 if __name__ == '__main__':
@@ -1115,4 +1124,3 @@ if __name__ == '__main__':
     interact(plot_amp,i=(0,100,1))
     ## It seems that height requirement is necessary to avoid false peaks
 
-# %%
