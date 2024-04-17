@@ -357,10 +357,10 @@ class CohenWorm:
                             stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE,
                             text=True)
-        yval,curvature = self.get_model_posture()
-        self.yval = yval
-        self.curvature = curvature
-        return yval,curvature
+        # yval,curvature = self.get_model_posture()
+        # self.yval = yval
+        # self.curvature = curvature
+        # return yval,curvature
 
     def get_model_posture(self):
         try:
@@ -379,7 +379,7 @@ class CohenWorm:
             yval = self.yval
         
         angle_unwrap = np.unwrap(yval[:,2])
-        curvature = angle_unwrap[1:] - angle_unwrap[:-1]
+        curvature = (angle_unwrap[1:] - angle_unwrap[:-1])/(1/self.N_Segment)
         return yval,curvature
 
     def update_body(self,V_muscle):
@@ -391,6 +391,7 @@ class CohenWorm:
         # V_all = np.concatenate((V_muscle,-V_muscle))
         # print(frame,V_all)
         V_muscle = np.concatenate((V_muscle,-V_muscle))
+        stuck = False
         try:
             for i in range(self.N_Segment*2):
                 self.mech_model.stdin.write(str(V_muscle[i//4])) # 4 means the 4 segments per unit
@@ -398,10 +399,10 @@ class CohenWorm:
             self.mech_model.stdin.write('\n')
             self.mech_model.stdin.flush()
         except:
-            raise Exception('Mechanical model not responding')
-        
-        yval,curvature = self.get_model_posture()
+            warnings.warn('Mechanical model not responding')
 
+        yval,curvature = self.get_model_posture()
+        self.yval = yval
         return yval,curvature
     
     def close(self):
@@ -415,7 +416,7 @@ if __name__ == '__main__':
     curvature_t = np.zeros((worm.N_Segment,T))
     for t in range(T):
         x = np.linspace(0,1,12)
-        input = np.concatenate((np.sin(x*2*np.pi-t*0.01*2*np.pi/3),-np.sin(x*2*np.pi-t*0.01*2*np.pi/3)))
+        input = np.sin(x*2*np.pi-t*0.01*2*np.pi/3)
         centerline,curvature = worm.update_body(input)
         centerline_t[:,:,t] = centerline
         curvature_t[:,t] = curvature
