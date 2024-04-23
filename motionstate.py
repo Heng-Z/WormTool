@@ -7,16 +7,15 @@ class MotionState:
     def __init__(self,curvature,window=50):
         if curvature.shape[0] < curvature.shape[1]:
             curvature = curvature.T
-        eigen_basis = np.load('../excursion/Eigenworm_basis/eigenworms_N2.npy')
+        eigen_basis = np.load('../WormSim/excursion/Eigenworm_basis/eigenworms_N2.npy')
         self.eigenworm = curvature@eigen_basis[:,:2]
         self.L = curvature.shape[0]
         self.window = window
         self.curvature = curvature
-        
+        self.phase = np.arctan2(self.eigenworm[:,1],self.eigenworm[:,0])
 
     def get_motion_state(self,std2mean=0.6):
-        phase = np.arctan2(self.eigenworm[:,1],self.eigenworm[:,0])
-        phase_unwrap = np.unwrap(phase)
+        phase_unwrap = np.unwrap(self.phase)
         phase_unwrap_sm = np.convolve(phase_unwrap,np.ones(15)/15,mode='same')
         dphase = np.gradient(phase_unwrap_sm,0.01)
         window = self.window
