@@ -467,6 +467,9 @@ def calc_amplitude(kt):
     # find negative peaks
     neg_peaks, _ = find_peaks(-kt_sm,prominence=reference*0.8,height=reference*0.6)
     # Calculate the average height of the peaks
+    if len(pos_peaks) == 0 and len(neg_peaks) == 0:
+        return None
+    
     peak_ave = np.mean(np.concatenate((kt_sm[pos_peaks],-kt_sm[neg_peaks])))
     # Calculate the amplitude
 

@@ -8,7 +8,7 @@ import matplotlib.animation as animation
 import serial
 import warnings
 import psutil
-
+from ipywidgets import interact
 class Worm:
     '''Worm locomotion simulator based on the neuro-mechanical model and code by Cohen 2012
     
@@ -335,7 +335,7 @@ class Connect:
     
 class CohenWorm:
     def __init__(self,model_path,**kwargs) -> None:
-        self.N_Input = 12
+        self.N_Input = 24
         self.N_Segment = 48
         self.NBAR = self.N_Segment + 1  
         self.N_Curv = self.N_Segment 
@@ -390,7 +390,7 @@ class CohenWorm:
         assert len(V_muscle) == self.N_Input
         # V_all = np.concatenate((V_muscle,-V_muscle))
         # print(frame,V_all)
-        V_muscle = np.concatenate((V_muscle,-V_muscle))
+        # V_muscle = np.concatenate((V_muscle,-V_muscle))
         stuck = False
         try:
             for i in range(self.N_Segment*2):
@@ -407,19 +407,34 @@ class CohenWorm:
     
     def close(self):
         psutil.Process(self.mech_model.pid).kill()
+
+
+
         
 #%%
 if __name__ == '__main__':
     worm = CohenWorm('../WormSim/WormSim_RL_demo_3/Model/program_dur100s_dt10ms')
-    T = 1000
-    centerline_t = np.zeros((worm.N_Segment+1,2,T))
+    worm.reset()
+    T = 4000
+    centerline = np.zeros((worm.N_Segment+1,2,T))
     curvature_t = np.zeros((worm.N_Segment,T))
     for t in range(T):
         x = np.linspace(0,1,12)
-        input = np.sin(x*2*np.pi-t*0.01*2*np.pi/3)
-        centerline,curvature = worm.update_body(input)
-        centerline_t[:,:,t] = centerline
+        input = np.sin(x*2*np.pi-t*0.01*2*np.pi/3)*0.7
+        input = np.concatenate((input,-input))
+        yval,curvature = worm.update_body(input)
+        centerline[:,:,t] = yval[:,:2]
         curvature_t[:,t] = curvature
+    xmin,xmax,ymin,ymax = centerline[:,0].min(),centerline[:,0].max(),centerline[:,1].min(),centerline[:,1].max()
+    sidelen = max(xmax-xmin,ymax-ymin)
+    def plot_centerline(i):
+        plt.plot(centerline[:,0,i],centerline[:,1,i])
+        plt.xlim(xmin-0.2*sidelen,xmin+1.2*sidelen)
+        plt.ylim(ymin-0.2*sidelen,ymin+1.2*sidelen)
+        plt.gca().set_aspect('equal', adjustable='box')
+        plt.show()
+    interact(plot_centerline,i=(0,T-1))
+    
         
 
 
