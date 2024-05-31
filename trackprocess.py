@@ -173,6 +173,9 @@ def ones_segment(zero_ones):
 def whole_track_processing(track_mat_file):
     '''
     track_mat_file: the mat file containing the tracking data: BoundaryA, BoundaryB, stage_position, timestamp
+
+    1. Cut the recording into segments of successful continuous tracking. Segments are separated by break periods which are usually successive failed boundary tracking.
+    2. Process each successful tracking segment: 
     '''
     track_mat = scipy.io.loadmat(track_mat_file)
     BoundaryA = track_mat['BoundaryA'].astype(np.float64)
@@ -184,7 +187,9 @@ def whole_track_processing(track_mat_file):
     for i in range(T):
         if not normal_boundary(BoundaryA[:,:,i],BoundaryB[:,:,i]):
             break_points[i] = 0
+    # find segments according to break points
     segments = ones_segment(break_points)
+    # Create empty arrays to store the processed data
     centerline = np.nan*np.zeros_like(BoundaryA)
     sliding_speed = np.nan*np.zeros(T)
     sliding_speed_smooth = np.nan*np.zeros(T)
@@ -196,6 +201,7 @@ def whole_track_processing(track_mat_file):
     BoundaryA_corrected = BoundaryA.copy()
     BoundaryB_corrected = BoundaryB.copy()
     body_phase_speed = np.nan*np.zeros(T)
+    # loop over segments to process each segment
     for i in range(len(segments)):
         start,end = segments[i]
         logger.debug('Segment processing: start:{}, end:{}'.format(start,end))
@@ -220,6 +226,7 @@ def whole_track_processing(track_mat_file):
         #     break
         # if i==1:
         #     break
+    # return some intermediate results if logger level is DEBUG
     if logger.level == logging.DEBUG:
         return {'timestamp':timestamp,'centerline':centerline,'sliding_speed':sliding_speed,
             'curvature':curvature,'sliding_speed_smooth':sliding_speed_smooth,

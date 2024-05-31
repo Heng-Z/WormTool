@@ -9,6 +9,7 @@ animate3D(x,y,z,save='test.mp4',fps=30,interval=10)
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
+from ipywidgets import interact
 
 def animate2D(x,y,save=None,interval=10,dpi=200,extend=0):
     '''
@@ -232,4 +233,35 @@ def plot_head_curve_eigenworm (centerline,head_curv,eigenworm,i):
     ax[2].set_xlabel('eigenworm 1')
     ax[2].set_ylabel('eigenworm 2')
     ax[2].set_position([0.6,0.1,0.4,0.4])
+    
+
+def plot_centerline_interact(centerline):
+    '''
+    Function to use with ipywedget interact; Plot the ith frame posture of the worm
+
+    Parameters
+    ----------
+    centerline : 3D array
+        Centerline of worm in the camera frame (n_segment,2,n_frame)
+    i : int
+        Frame number
+    '''
+    def plot_centerline(i):
+        fig,ax = plt.subplots(1,1,figsize=(5,5),dpi=100)
+        x_min = np.min(centerline[:,0,:])
+        x_max = np.max(centerline[:,0,:])
+        y_min = np.min(centerline[:,1,:])
+        y_max = np.max(centerline[:,1,:])
+        sidelen = max(x_max-x_min,y_max-y_min)
+        ax.plot(centerline[:,0,i],centerline[:,1,i],'k')
+        ax.plot(centerline[0,0,i],centerline[0,1,i],'ro')
+        ax.set_xlim(x_min,x_min+sidelen)
+        ax.set_ylim(y_min,y_min+sidelen)
+        ax.invert_yaxis()
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        #eqaul aspect ratio
+        ax.set_aspect('equal')
+        plt.show()
+    interact(plot_centerline,i=(0,centerline.shape[2]-1,1))
     
