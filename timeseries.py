@@ -252,7 +252,7 @@ def interp_centerline(centerline,x_orig,x_targ,t_orig,t_targ,smooth=0.95):
         centerline_interp_spacetime[xi,:,:] = csaps(t_orig,centerline_interp_space[xi,:,:],t_targ,smooth=1)
     return centerline_interp_spacetime
 
-def centerline2curvature(centerline,smooth=0.99999):
+def centerline2curvature(centerline,smooth=0.99999,return_theta=False):
     '''
     Smooth the centerline witch csaps and calculate the curvature.
     
@@ -272,16 +272,23 @@ def centerline2curvature(centerline,smooth=0.99999):
     curv_orig = np.zeros((N,T))
     x_orig = np.linspace(0,1,N)
     x_targ = np.linspace(0,1,N_interp)
+    theta_orig = np.zeros((N,T))
     for t in range(T):
         centerline_interp[:,:,t] = csaps(x_orig,centerline[:,:,t].T,x_targ,smooth=smooth).T
-        theta = centerline2angle_one(centerline_interp[:,:,t])
-        curv_interp = (theta[1:]-theta[:-1])/(1/N_interp)
+        theta = centerline2angle_one(centerline_interp[:,:,t]) # angles of the interpolated centerline, N_interp-1
+        curv_interp = (theta[1:]-theta[:-1])/(1/N_interp) # N_interp-2
         x_curv_interp = np.linspace(0,1,N_interp-2)
         x_curv_orig = np.linspace(0,1,N)
         curv_orig[:,t] = csaps(x_curv_interp,curv_interp,x_curv_orig,smooth=1)
+        if return_theta:
+            theta_orig[:,t] = csaps(np.linspace(0,1,N_interp-1),theta,np.linspace(0,1,N),smooth=1)
+
         # Use linear interpolation instead of csaps
         # curv_orig[:,t] = np.interp(x_curv_orig,x_curv_interp,curv_interp)
-    return curv_orig
+    if return_theta:
+        return curv_orig,theta_orig
+    else:
+        return curv_orig
     
 def boundary2centerline(boundary_A,boundary_B,direct_mean=False):
     '''
